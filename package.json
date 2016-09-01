@@ -1,6 +1,6 @@
 {
-  "name": "continuation-local-storage",
-  "version": "3.1.7",
+  "name": "continuation-local-storage-x",
+  "version": "3.1.8",
   "description": "userland implementation of https://github.com/joyent/node/issues/5243",
   "main": "context.js",
   "directories": {
@@ -31,7 +31,7 @@
     "tap": "^6.3.2"
   },
   "dependencies": {
-    "async-listener": "^0.6.0",
+    "async-listener-x": "^0.6.0",
     "emitter-listener": "^1.0.1"
   }
 }
