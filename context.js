@@ -1,5 +1,7 @@
 'use strict';
 
+var oneapm_balance = 0
+
 var assert      = require('assert');
 var wrapEmitter = require('emitter-listener');
 
@@ -12,7 +14,7 @@ var CONTEXTS_SYMBOL = 'cls@contexts';
 var ERROR_SYMBOL = 'error@context';
 
 // load polyfill if native support is unavailable
-if (!process.addAsyncListener) require('async-listener-x');
+if (!process.addAsyncListener2) require('async-listener-x');
 
 function Namespace(name) {
   this.name   = name;
@@ -23,6 +25,7 @@ function Namespace(name) {
 }
 
 Namespace.prototype.set = function (key, value) {
+  oneapm_log('set key=' + key + ', value=' + value)
   if (!this.active) {
     throw new Error("No context available. ns.run() or ns.bind() must be called first.");
   }
@@ -32,16 +35,19 @@ Namespace.prototype.set = function (key, value) {
 };
 
 Namespace.prototype.get = function (key) {
+  oneapm_log('get key=' + key)
   if (!this.active) return undefined;
 
   return this.active[key];
 };
 
 Namespace.prototype.createContext = function () {
+  oneapm_log('create context')
   return Object.create(this.active);
 };
 
 Namespace.prototype.run = function (fn) {
+  oneapm_log('run')
   var context = this.createContext();
   this.enter(context);
   try {
@@ -57,14 +63,6 @@ Namespace.prototype.run = function (fn) {
   finally {
     this.exit(context);
   }
-};
-
-Namespace.prototype.runAndReturn = function (fn) {
-  var value;
-  this.run(function (context) {
-    value = fn(context);
-  });
-  return value;
 };
 
 Namespace.prototype.bind = function (fn, context) {
@@ -96,6 +94,7 @@ Namespace.prototype.bind = function (fn, context) {
 };
 
 Namespace.prototype.enter = function (context) {
+  oneapm_log('enter namespace ' + (++oneapm_balance))
   assert.ok(context, "context must be provided for entering");
 
   this._set.push(this.active);
@@ -103,6 +102,7 @@ Namespace.prototype.enter = function (context) {
 };
 
 Namespace.prototype.exit = function (context) {
+  oneapm_log('exit namespace ' + (--oneapm_balance))
   assert.ok(context, "context must be provided for exiting");
 
   // Fast path for most exits that are at the top of the stack
@@ -165,14 +165,16 @@ Namespace.prototype.fromException = function (exception) {
 };
 
 function get(name) {
+  oneapm_log('get namespace: ' + name)
   return process.namespaces[name];
 }
 
 function create(name) {
+  oneapm_log('create namespace: ' + name)
   assert.ok(name, "namespace must be given a name!");
 
   var namespace = new Namespace(name);
-  namespace.id = process.addAsyncListener({
+  namespace.id = process.addAsyncListener2({
     create : function () { return namespace.active; },
     before : function (context, storage) { if (storage) namespace.enter(storage); },
     after  : function (context, storage) { if (storage) namespace.exit(storage); },
@@ -184,16 +186,18 @@ function create(name) {
 }
 
 function destroy(name) {
+  oneapm_log('destroy namespace: ' + name)
   var namespace = get(name);
 
   assert.ok(namespace,    "can't delete nonexistent namespace!");
   assert.ok(namespace.id, "don't assign to process.namespaces directly!");
 
-  process.removeAsyncListener(namespace.id);
+  process.removeAsyncListener2(namespace.id);
   process.namespaces[name] = null;
 }
 
 function reset() {
+  oneapm_log('reset namespace')
   // must unregister async listeners
   if (process.namespaces) {
     Object.keys(process.namespaces).forEach(function (name) {
@@ -210,3 +214,8 @@ module.exports = {
   destroyNamespace : destroy,
   reset            : reset
 };
+
+function oneapm_log(text) {
+  // if (/^enter/.test(text) || /^exit/.test(text)) return
+  // console.log('[oneapm] ' + text)
+}
